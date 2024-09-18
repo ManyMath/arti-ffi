@@ -161,7 +161,22 @@ pub unsafe extern "C" fn arti_progress_next(tor: *mut Tor) -> *const c_char {
     }
 }
 
+// Return a string to test FFI.
+//
+// Make sure to free the memory allocated by CString (use darti_free_string).
 #[no_mangle]
-pub extern "C" fn arti_hello() {
-    println!("HELLO THERE"); // Simple function to verify FFI linkage.
+pub extern "C" fn darti_hello() -> *mut c_char {
+    let c_str = CString::new("Hello there").unwrap();
+    c_str.into_raw() // Return raw pointer to the CString
+}
+
+// A helper function to free the memory allocated by CString.
+//
+// Make sure to call this function to free the memory allocated by CString.
+#[no_mangle]
+pub extern "C" fn darti_free_string(s: *mut c_char) {
+    if s.is_null() { return; }
+    unsafe {
+        let _ = CString::from_raw(s); // This reclaims the CString and drops it, freeing the memory
+    }
 }
