@@ -3,6 +3,10 @@ name = "arti-ffi"
 version = "0.0.1"
 edition = "2021"
 
+[[bin]]
+name = "arti_ffi"
+path = "bin/main.rs"
+
 [lib]
 name = "arti_ffi"
 path = "src/lib.rs"
