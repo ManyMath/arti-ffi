@@ -2,6 +2,9 @@
 name = "arti-ffi"
 version = "0.0.1"
 edition = "2021"
+description = "Arti oriented for use by Dart."
+repository = "https://github.com/ManyMath/keepass-rust"
+license = "MIT"
 
 [[bin]]
 name = "arti_ffi"
