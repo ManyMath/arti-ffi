@@ -18,8 +18,8 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 lazy_static = "1.4"
 tokio = { version = "1", features = ["full"] }
-arti-client = { version = "0.22.0", features = ["static", "onion-service-client"] }
-arti = { version = "1.2.7", features = ["experimental-api", "static"] }
+arti-client = { version = "0.24.0", features = ["static", "onion-service-client"] }
+arti = { version = "1.3.0", features = ["experimental-api", "static"] }
 tor-rtcompat = { version = "0.22.0", features = ["static", "native-tls", "tokio"] }
 tor-config = "0.22.0"
 log = "0.4.20"
