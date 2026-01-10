@@ -46,7 +46,19 @@ fn android_on_linux_check() {
             .next()
             .expect("Failed to find link search path"); // Expect a valid path.
 
-        println!("cargo:rustc-link-lib=static=clang_rt.builtins-x86_64-android");
+        let builtins_arch = if target.contains("aarch64") {
+            "aarch64"
+        } else if target.contains("armv7") || target.contains("arm-") {
+            "arm"
+        } else if target.contains("x86_64") {
+            "x86_64"
+        } else if target.contains("i686") {
+            "i686"
+        } else {
+            "x86_64"
+        };
+
+        println!("cargo:rustc-link-lib=static=clang_rt.builtins-{}-android", builtins_arch);
         println!("cargo:rustc-link-search={}", link_search_path.display());
     }
 }
