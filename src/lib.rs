@@ -110,31 +110,27 @@ pub unsafe extern "C" fn arti_start(
 
 #[no_mangle]
 pub unsafe extern "C" fn arti_client_bootstrap(client: *mut c_void) -> bool {
-    // Convert raw pointer back to TorClient.
-    let client = unsafe {
-        Box::from_raw(client as *mut TorClient<TokioNativeTlsRuntime>)
-    };
-
-    // Bootstrap the Tor client and return the result.
+    let client = &*(client as *mut TorClient<TokioNativeTlsRuntime>);
     unwrap_or_return!(client.runtime().block_on(client.bootstrap()), false);
     true
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn arti_client_set_dormant(client: *mut c_void, soft_mode: bool) {
-    // Convert raw pointer back to TorClient.
-    let client = unsafe {
-        Box::from_raw(client as *mut TorClient<TokioNativeTlsRuntime>)
-    };
-
-    // Set the dormant mode for the Tor client.
+    let client = &*(client as *mut TorClient<TokioNativeTlsRuntime>);
     let dormant_mode = if soft_mode {
         DormantMode::Soft
     } else {
         DormantMode::Normal
     };
     client.set_dormant(dormant_mode);
-    Box::leak(client); // Prevents the client from being deallocated.
+}
+
+/// Free the TorClient. Pointer is invalid after this call.
+#[no_mangle]
+pub unsafe extern "C" fn arti_client_free(client: *mut c_void) {
+    if client.is_null() { return; }
+    let _ = Box::from_raw(client as *mut TorClient<TokioNativeTlsRuntime>);
 }
 
 #[no_mangle]
