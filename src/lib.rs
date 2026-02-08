@@ -1,7 +1,7 @@
 #[macro_use]
 mod error;
 
-use arti::socks;
+use arti::proxy;
 use arti_client::{DormantMode, TorClient, TorClientConfig};
 use arti_client::config::CfgPath;
 use lazy_static::lazy_static;
@@ -11,7 +11,7 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
-use tor_rtcompat::BlockOn;
+use tor_rtcompat::ToplevelBlockOn;
 
 lazy_static! {
     // Initialize a Tokio runtime once and reuse it throughout the application.
@@ -35,13 +35,14 @@ fn start_proxy(
     let rt = RUNTIME.as_ref().unwrap(); // Assume runtime is initialized successfully.
     let progress_sender = progress_sender.clone(); // Clone inside async block to avoid multiple mutable borrows.
     rt.spawn(async move {
-        progress_sender.send("Proxy started".to_string()).await.unwrap(); // Notify that proxy has started.
-        socks::run_socks_proxy(
-            client.runtime().clone(),
+        progress_sender.send("Proxy started".to_string()).await.unwrap();
+        let addr: std::net::SocketAddr = ([127, 0, 0, 1], port).into();
+        let listener = tor_rtcompat::NetStreamProvider::listen(&client.runtime().clone(), &addr).await?;
+        proxy::run_proxy_with_listeners(
             client.clone(),
-            tor_config::Listen::new_localhost(port),
-        )
-        .await
+            vec![listener],
+            None,
+        ).await
     })
 }
 
