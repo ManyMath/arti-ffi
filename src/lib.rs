@@ -11,6 +11,7 @@ use tokio::runtime::{Builder, Runtime};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use tor_rtcompat::tokio::TokioNativeTlsRuntime;
+use tor_config::Reconfigure;
 use tor_rtcompat::ToplevelBlockOn;
 
 lazy_static! {
@@ -18,12 +19,19 @@ lazy_static! {
     static ref RUNTIME: io::Result<Runtime> = Builder::new_multi_thread().enable_all().build();
 }
 
-#[repr(C)] // Ensure struct has a defined layout for FFI compatibility.
+#[repr(C)]
 pub struct Tor {
     client: *mut c_void,
     proxy: *mut c_void,
     progress_sender: *mut c_void,
     progress_receiver: *mut c_void,
+}
+
+/// Fraction + message. Caller frees `message` via `darti_free_string`.
+#[repr(C)]
+pub struct BootstrapStatus {
+    pub progress: f32,
+    pub message: *mut c_char,
 }
 
 fn start_proxy(
@@ -132,6 +140,55 @@ pub unsafe extern "C" fn arti_client_set_dormant(client: *mut c_void, soft_mode:
 pub unsafe extern "C" fn arti_client_free(client: *mut c_void) {
     if client.is_null() { return; }
     let _ = Box::from_raw(client as *mut TorClient<TokioNativeTlsRuntime>);
+}
+
+/// Non-blocking bootstrap status. Caller frees `message` via `darti_free_string`.
+#[no_mangle]
+pub unsafe extern "C" fn arti_bootstrap_status(client: *mut c_void) -> BootstrapStatus {
+    if client.is_null() {
+        return BootstrapStatus {
+            progress: 0.0,
+            message: CString::new("Client is null").unwrap().into_raw(),
+        };
+    }
+    let client = &*(client as *mut TorClient<TokioNativeTlsRuntime>);
+    let status = client.bootstrap_status();
+    let progress = status.as_frac();
+    let message = CString::new(status.to_string()).unwrap().into_raw();
+    BootstrapStatus { progress, message }
+}
+
+/// Apply new state/cache dirs. Returns false on error (check `arti_last_error_message`).
+#[no_mangle]
+pub unsafe extern "C" fn arti_reconfigure(
+    client: *mut c_void,
+    state_dir: *const c_char,
+    cache_dir: *const c_char,
+) -> bool {
+    if client.is_null() { return false; }
+    let client = &*(client as *mut TorClient<TokioNativeTlsRuntime>);
+    let state_dir = unwrap_or_return!(CStr::from_ptr(state_dir).to_str(), false);
+    let cache_dir = unwrap_or_return!(CStr::from_ptr(cache_dir).to_str(), false);
+
+    let mut cfg_builder = TorClientConfig::builder();
+    cfg_builder
+        .storage()
+        .state_dir(CfgPath::new(state_dir.to_string()))
+        .cache_dir(CfgPath::new(cache_dir.to_string()));
+    cfg_builder.address_filter().allow_onion_addrs(true);
+
+    let cfg = unwrap_or_return!(cfg_builder.build(), false);
+    unwrap_or_return!(client.reconfigure(&cfg, Reconfigure::AllOrNothing), false);
+    true
+}
+
+/// Circuit-isolated client. Caller owns result, free with `arti_client_free`.
+#[no_mangle]
+pub unsafe extern "C" fn arti_isolated_client(client: *mut c_void) -> *mut c_void {
+    if client.is_null() { return ptr::null_mut(); }
+    let client = &*(client as *mut TorClient<TokioNativeTlsRuntime>);
+    let isolated = client.isolated_client();
+    Box::into_raw(Box::new(isolated)) as *mut c_void
 }
 
 #[no_mangle]
